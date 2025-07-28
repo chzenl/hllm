@@ -1,3 +1,5 @@
-from main import 
+from main import Calc
 
-def 
+def test_calc():
+  c=Calc()
+  assert c.add(1,2)==3
