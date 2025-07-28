@@ -1,0 +1,9 @@
+services:
+  d1:
+    image: d1
+  d2:
+    environment:
+      - URLSOMEINT=http://172.18.0.2:8020/someint
+    image: d2
+    depends_on:
+      - d1
