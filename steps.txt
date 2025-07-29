@@ -2,3 +2,4 @@ sudo docker build . -t d1 -f Dockerfile1
 sudo docker build . -t d2 -f Dockerfile2
 sudo docker compose  up
 sudo docker inspect <<image>> --> Ipaddress
+sammiex
