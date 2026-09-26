@@ -61,7 +61,7 @@ class BookDetailsParserTest {
         assertEquals("Duits", d.language());
         assertEquals("4", d.languageId());
         assertEquals("€ 3,99", d.price());
-        assertEquals("https://rezised-images.knhbt.cz/300x300/83015870.webp", d.imageUrl());
+        assertEquals("https://rezised-images.knhbt.cz/300x300/83015870.jpg", d.imageUrl());
 
         // Searching an ISBN can land directly on a book page; that page is then the only result.
         List<Book> books = SearchResultParser.parse(doc);

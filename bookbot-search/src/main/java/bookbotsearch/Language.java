@@ -12,7 +12,10 @@ public enum Language {
     FRENCH("Frans", 5),
     SPANISH("Spaans", 7),
     ITALIAN("Italiaans", 8),
-    CZECH("Tsjechisch", 1);
+    CZECH("Tsjechisch", 1),
+    SLOVAK("Slowaaks", 2),
+    POLISH("Pools", 6),
+    RUSSIAN("Russisch", 13);
 
     private final String label;
     private final int id;

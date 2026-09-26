@@ -11,7 +11,9 @@ Desktop app (Java Swing) for searching second-hand books on [bookbot.nl](https:/
   all books in those languages.
 - **Zoekterm in titel** (on by default): only show books whose title contains every search word.
   Turn it off to also find books by author or ISBN.
-- Publication year and language are shown for every book
+- **Alleen op voorraad**: hide sold-out books
+- Columns for title, author, year, language, price and availability; the details panel also shows
+  publisher and ISBN
 - Details panel with the cover image, title, author and price
 - Double-click a result, or click **Openen op bookbot.nl**, to open the book page in your browser
 - Page through results with **Vorige** / **Volgende**
@@ -51,19 +53,21 @@ Italiaans 8. Page 2 of German and Dutch results for "chemie" is
 The URLs can be changed under **Instellingen…** or at startup with `-Dbookbot.searchUrl=...`,
 `-Dbookbot.languageSearchUrl=...` and `-Dbookbot.languageBrowseUrl=...`.
 
-### Title filter, year and language
+### Filters, year and language
 
-**Zoekterm in titel** is applied by the app: books whose title does not contain every search word
-are left out. Because that can remove many books, the app reads up to 5 result pages per click and
-stops once it has 20 books; **Volgende** continues from there.
+**Zoekterm in titel** and **Alleen op voorraad** are applied by the app. Because they can remove
+many books, the app reads up to 5 result pages per click and stops once it has 20 books;
+**Volgende** continues from there.
 
-Search results do not show year or language, so the app opens each result's own page
-(`/g/<id>`, six at a time, cached) and reads "Jaar van uitgave" and "Taal" from it.
+The search results carry no publication year, so the app opens each result's own page
+(`/g/<id>/b/<copy>`, six at a time, cached) and reads the year from it.
 
 ## How results are read
 
-bookbot.nl has no public API, so the app reads the HTML of the search page with
-[jsoup](https://jsoup.org). It finds each link to a product page (`/g/<id>`) and reads title,
-author, price and cover from the card around it. The parser does not depend on exact CSS class
-names, but a big redesign of the site may still require changes in `SearchResultParser`.
-Please use the app for personal use and keep your number of requests reasonable.
+bookbot.nl is a Next.js site: every page embeds its data as JSON in `<script id="__NEXT_DATA__">`.
+For search pages the app reads `props.pageProps.componentProps.items` (title, author, price in cents,
+stock, language ids, publisher, ISBN, cover id) and `pagination`; for book pages it reads `year` and
+`languageIds`. If that data is missing it falls back to reading the HTML with
+[jsoup](https://jsoup.org). Tests in `src/test/resources` use trimmed copies of real pages, so a
+change on bookbot's side can be checked quickly. Please use the app for personal use and keep your
+number of requests reasonable.

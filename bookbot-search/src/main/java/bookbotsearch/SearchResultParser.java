@@ -46,6 +46,12 @@ public final class SearchResultParser {
             return List.of(parseProductPage(doc, self.group(1)));
         }
 
+        // Bookbot's own page data is exact; the HTML heuristics below are the fallback.
+        List<Book> fromData = NextDataParser.parse(doc);
+        if (fromData != null) {
+            return fromData;
+        }
+
         Map<String, List<Element>> linksById = productLinks(doc);
         List<Book> books = new ArrayList<>();
         for (Map.Entry<String, List<Element>> e : linksById.entrySet()) {
@@ -129,7 +135,11 @@ public final class SearchResultParser {
             price = findPrice(card.text());
         }
 
-        return new Book(id, clean(title), clean(author), price, url, imageUrl(card));
+        String text = card.text();
+        String availability = text.contains("Uitverkocht") ? Book.SOLD_OUT
+                : text.contains("In winkelmandje") ? Book.IN_STOCK : "";
+        return new Book(id, clean(title), clean(author), price, url, imageUrl(card),
+                "", "", "", availability, "", "");
     }
 
     /** Walks up from the link while the ancestor still belongs to this product only. */
@@ -236,9 +246,15 @@ public final class SearchResultParser {
         return "";
     }
 
-    /** Bookbot's image server has several sizes (/100x100/ ... /1920x1920/); 300x300 fits the details panel. */
+    /**
+     * Bookbot's image server has several sizes (/100x100/ ... /1920x1920/); 300x300 fits the details panel.
+     */
     static String smallCover(String url) {
-        return url.replaceFirst("(knhbt\\.cz/)\\d+x\\d+/", "$1300x300/");
+        if (!url.contains("knhbt.cz/")) {
+            return url;
+        }
+        // Java's ImageIO cannot read WebP, and bookbot serves every image as .jpg too.
+        return url.replaceFirst("(knhbt\\.cz/)\\d+x\\d+/", "$1300x300/").replaceFirst("\\.webp$", ".jpg");
     }
 
     private static String meta(Document doc, String property) {

@@ -36,7 +36,9 @@ class BookbotClientTest {
             } else if (path.endsWith("/page/2")) {
                 reply(ex, card(4, "Chemie heute") + card(5, "Kochbuch"));
             } else {
-                reply(ex, "<p>Geen resultaten</p>");
+                // Anything else, including page 3 (past the last page), does not exist.
+                ex.sendResponseHeaders(404, -1);
+                ex.close();
             }
         });
         server.createContext("/g/", ex -> {
@@ -65,12 +67,25 @@ class BookbotClientTest {
     }
 
     @Test
+    void keepsResultsWhenALaterPageFails() throws Exception {
+        BookbotClient client = new BookbotClient(base + "/p/q/{query}/page/{page}",
+                base + "/p/q/{query}/language/{languages}/page/{page}", base + "/p/language/{languages}");
+        // A failing first page is an error; the Dutch search does not exist on the fake server.
+        org.junit.jupiter.api.Assertions.assertThrows(IOException.class, () ->
+                client.searchBatch("chemie", EnumSet.of(Language.DUTCH), false, false, 1, b -> { }));
+        BookbotClient.Batch batch = client.searchBatch("chemie",
+                EnumSet.of(Language.GERMAN, Language.ENGLISH, Language.CZECH), false, false, 2, b -> { });
+        assertEquals(List.of("Chemie heute", "Kochbuch"), batch.books().stream().map(Book::title).toList());
+        assertFalse(batch.more());
+    }
+
+    @Test
     void searchesWithLanguagesAndFiltersTitles() throws Exception {
         BookbotClient client = new BookbotClient(base + "/p/q/{query}/page/{page}",
                 base + "/p/q/{query}/language/{languages}/page/{page}", base + "/p/language/{languages}");
         List<Book> streamed = new ArrayList<>();
         BookbotClient.Batch batch = client.searchBatch("chemie",
-                EnumSet.of(Language.GERMAN, Language.ENGLISH, Language.CZECH), true, 1, streamed::add);
+                EnumSet.of(Language.GERMAN, Language.ENGLISH, Language.CZECH), true, false, 1, streamed::add);
 
         assertEquals(List.of("/p/q/chemie/language/1_3_4", "/p/q/chemie/language/1_3_4/page/2",
                 "/p/q/chemie/language/1_3_4/page/3"), requested);

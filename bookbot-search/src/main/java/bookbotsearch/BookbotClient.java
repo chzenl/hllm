@@ -55,8 +55,12 @@ public final class BookbotClient {
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
                     + "Chrome/124.0 Safari/537.36 BookbotSearch/1.0";
 
-    /** Result of {@link #searchBatch}. {@code titleSkipped} counts books left out by the title filter. */
-    public record Batch(List<Book> books, int nextPage, boolean more, int pagesScanned, int titleSkipped) {
+    /**
+     * Result of {@link #searchBatch}. {@code titleSkipped} and {@code soldOutSkipped} count books left out
+     * by the title filter and the in-stock filter.
+     */
+    public record Batch(List<Book> books, int nextPage, boolean more, int pagesScanned, int titleSkipped,
+            int soldOutSkipped) {
     }
 
     private final Map<String, BookDetails> detailsCache = new ConcurrentHashMap<>();
@@ -154,21 +158,35 @@ public final class BookbotClient {
      * lacks a search word are skipped and more result pages are read, until {@value #TARGET_RESULTS}
      * books were found or {@value #MAX_PAGES_PER_BATCH} pages were read.
      */
-    public Batch searchBatch(String query, Set<Language> languages, boolean titleOnly, int startPage,
+    public Batch searchBatch(String query, Set<Language> languages, boolean titleOnly, boolean inStockOnly,
+            int startPage,
             Consumer<Book> onBook) throws IOException, InterruptedException {
         List<Book> found = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         int page = startPage;
         int pages = 0;
         int skipped = 0;
+        int soldOut = 0;
         boolean more = true;
 
-        while (found.size() < TARGET_RESULTS && pages < MAX_PAGES_PER_BATCH) {
+        while (more && found.size() < TARGET_RESULTS && pages < MAX_PAGES_PER_BATCH) {
             if (Thread.interrupted()) {
                 throw new InterruptedException();
             }
             List<Book> fresh = new ArrayList<>();
-            for (Book b : search(query, page, languages)) {
+            Document doc;
+            try {
+                doc = fetch(searchUrl(query, page, languages));
+            } catch (IOException e) {
+                if (pages == 0) {
+                    throw e;
+                }
+                // A later page failed (e.g. past the last page): keep what was found so far.
+                more = false;
+                break;
+            }
+            int lastPage = NextDataParser.lastPage(doc);
+            for (Book b : SearchResultParser.parse(doc)) {
                 if (seen.add(b.id())) {
                     fresh.add(b);
                 }
@@ -180,13 +198,18 @@ public final class BookbotClient {
             }
             page++;
             pages++;
+            if (lastPage > 0 && page > lastPage) {
+                more = false;
+            }
 
             List<Future<Book>> withDetails = new ArrayList<>();
             for (Book b : fresh) {
-                if (!titleOnly || titleMatches(b.title(), query)) {
-                    withDetails.add(detailPool.submit(() -> b.withDetails(details(b))));
-                } else {
+                if (titleOnly && !titleMatches(b.title(), query)) {
                     skipped++;
+                } else if (inStockOnly && b.isSoldOut()) {
+                    soldOut++;
+                } else {
+                    withDetails.add(detailPool.submit(() -> b.withDetails(details(b))));
                 }
             }
             try {
@@ -202,7 +225,7 @@ public final class BookbotClient {
                 throw new IOException(e.getCause());
             }
         }
-        return new Batch(found, page, more, pages, skipped);
+        return new Batch(found, page, more, pages, skipped, soldOut);
     }
 
     /** True when every word of the query occurs in the title, ignoring case and accents. */

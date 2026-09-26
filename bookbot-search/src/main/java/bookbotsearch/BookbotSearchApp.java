@@ -62,6 +62,7 @@ public final class BookbotSearchApp extends JFrame {
     private final JPopupMenu languageMenu = new JPopupMenu();
     private final Map<Language, JCheckBoxMenuItem> languageItems = new EnumMap<>(Language.class);
     private final JCheckBox titleOnlyBox = new JCheckBox("Zoekterm in titel", true);
+    private final JCheckBox inStockOnlyBox = new JCheckBox("Alleen op voorraad", false);
     private final JButton searchButton = new JButton("Zoeken");
     private final JButton prevButton = new JButton("◀ Vorige");
     private final JButton nextButton = new JButton("Volgende ▶");
@@ -75,6 +76,8 @@ public final class BookbotSearchApp extends JFrame {
     private final JLabel priceLabel = new JLabel();
     private final JLabel yearLabel = new JLabel();
     private final JLabel languageLabel = new JLabel();
+    private final JLabel availabilityLabel = new JLabel();
+    private final JLabel publisherLabel = new JLabel();
     private final JButton openButton = new JButton("Openen op bookbot.nl");
 
     private String currentQuery = "";
@@ -84,6 +87,7 @@ public final class BookbotSearchApp extends JFrame {
     private static final String PREF_LANGUAGES = "languages";
     private static final String DEFAULT_LANGUAGES = "DUTCH,ENGLISH,GERMAN,CZECH";
     private boolean currentTitleOnly;
+    private boolean currentInStockOnly;
     private boolean hasSearched;
     /** Bookbot result page each batch shown so far started at; the last entry is the batch on screen. */
     private final List<Integer> batchStarts = new ArrayList<>();
@@ -106,25 +110,33 @@ public final class BookbotSearchApp extends JFrame {
         JPanel root = new JPanel(new BorderLayout(8, 8));
         root.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        JPanel top = new JPanel(new BorderLayout(6, 0));
-        top.add(new JLabel("Zoeken:"), BorderLayout.WEST);
-        top.add(queryField, BorderLayout.CENTER);
+        JPanel searchRow = new JPanel(new BorderLayout(6, 0));
+        searchRow.add(new JLabel("Zoeken:"), BorderLayout.WEST);
+        searchRow.add(queryField, BorderLayout.CENTER);
         JPanel topButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         JButton settingsButton = new JButton("Instellingen…");
         buildLanguageMenu();
         topButtons.add(languageButton);
-        titleOnlyBox.setToolTipText("Alleen boeken tonen waarvan de titel alle zoekwoorden bevat");
-        topButtons.add(titleOnlyBox);
         topButtons.add(searchButton);
         topButtons.add(settingsButton);
-        top.add(topButtons, BorderLayout.EAST);
+        searchRow.add(topButtons, BorderLayout.EAST);
+
+        JPanel optionsRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        titleOnlyBox.setToolTipText("Alleen boeken tonen waarvan de titel alle zoekwoorden bevat");
+        inStockOnlyBox.setToolTipText("Uitverkochte boeken niet tonen");
+        optionsRow.add(titleOnlyBox);
+        optionsRow.add(inStockOnlyBox);
+
+        JPanel top = new JPanel(new BorderLayout(0, 4));
+        top.add(searchRow, BorderLayout.NORTH);
+        top.add(optionsRow, BorderLayout.SOUTH);
         root.add(top, BorderLayout.NORTH);
 
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         table.setRowHeight(24);
         table.setAutoCreateRowSorter(false);
         table.setRowSorter(new TableRowSorter<>(tableModel));
-        int[] widths = {360, 180, 55, 90, 70};
+        int[] widths = {340, 170, 50, 90, 65, 90};
         for (int i = 0; i < widths.length; i++) {
             table.getColumnModel().getColumn(i).setPreferredWidth(widths[i]);
         }
@@ -159,6 +171,11 @@ public final class BookbotSearchApp extends JFrame {
 
         searchButton.addActionListener(e -> newSearch());
         queryField.addActionListener(e -> newSearch());
+        inStockOnlyBox.addActionListener(e -> {
+            if (hasSearched) {
+                newSearch();
+            }
+        });
         titleOnlyBox.addActionListener(e -> {
             if (hasSearched) {
                 newSearch();
@@ -205,7 +222,8 @@ public final class BookbotSearchApp extends JFrame {
         coverLabel.setAlignmentX(LEFT_ALIGNMENT);
         titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, 15f));
         priceLabel.setFont(priceLabel.getFont().deriveFont(Font.BOLD, 14f));
-        for (JLabel l : new JLabel[] {titleLabel, authorLabel, priceLabel, yearLabel, languageLabel}) {
+        for (JLabel l : new JLabel[] {titleLabel, authorLabel, priceLabel, yearLabel, languageLabel,
+                availabilityLabel, publisherLabel}) {
             l.setAlignmentX(LEFT_ALIGNMENT);
         }
         openButton.setAlignmentX(LEFT_ALIGNMENT);
@@ -219,6 +237,10 @@ public final class BookbotSearchApp extends JFrame {
         panel.add(yearLabel);
         panel.add(Box.createVerticalStrut(2));
         panel.add(languageLabel);
+        panel.add(Box.createVerticalStrut(2));
+        panel.add(publisherLabel);
+        panel.add(Box.createVerticalStrut(2));
+        panel.add(availabilityLabel);
         panel.add(Box.createVerticalStrut(8));
         panel.add(priceLabel);
         panel.add(Box.createVerticalStrut(12));
@@ -331,6 +353,7 @@ public final class BookbotSearchApp extends JFrame {
         currentQuery = q;
         currentLanguages = languages;
         currentTitleOnly = titleOnlyBox.isSelected() && !q.isEmpty();
+        currentInStockOnly = inStockOnlyBox.isSelected();
         hasSearched = true;
         batchStarts.clear();
         startBatch(1);
@@ -344,6 +367,7 @@ public final class BookbotSearchApp extends JFrame {
         String q = currentQuery;
         Set<Language> languages = currentLanguages;
         boolean titleOnly = currentTitleOnly;
+        boolean inStockOnly = currentInStockOnly;
         batchStarts.add(startPage);
         int batchNumber = batchStarts.size();
         String description = describe(q, languages);
@@ -357,7 +381,7 @@ public final class BookbotSearchApp extends JFrame {
         SwingWorker<BookbotClient.Batch, Book> worker = new SwingWorker<>() {
             @Override
             protected BookbotClient.Batch doInBackground() throws Exception {
-                return client.searchBatch(q, languages, titleOnly, startPage, this::publish);
+                return client.searchBatch(q, languages, titleOnly, inStockOnly, startPage, this::publish);
             }
 
             @Override
@@ -417,6 +441,9 @@ public final class BookbotSearchApp extends JFrame {
         if (batch.titleSkipped() > 0) {
             sb.append(" – ").append(batch.titleSkipped()).append(" zonder zoekterm in de titel weggelaten");
         }
+        if (batch.soldOutSkipped() > 0) {
+            sb.append(" – ").append(batch.soldOutSkipped()).append(" uitverkocht weggelaten");
+        }
         if (batch.books().isEmpty() && batch.more()) {
             sb.append(" – klik op Volgende om verder te zoeken");
         }
@@ -447,6 +474,8 @@ public final class BookbotSearchApp extends JFrame {
             priceLabel.setText(" ");
             yearLabel.setText(" ");
             languageLabel.setText(" ");
+            availabilityLabel.setText(" ");
+            publisherLabel.setText(" ");
             coverLabel.setIcon(null);
             coverLabel.setText("Geen boek geselecteerd");
             return;
@@ -456,6 +485,9 @@ public final class BookbotSearchApp extends JFrame {
         priceLabel.setText(book.price().isEmpty() ? "Prijs onbekend" : book.price());
         yearLabel.setText("Jaar van uitgave: " + (book.year().isEmpty() ? "onbekend" : book.year()));
         languageLabel.setText("Taal: " + (book.language().isEmpty() ? "onbekend" : book.language()));
+        String publisher = book.publisher() + (book.isbn().isEmpty() ? "" : " · ISBN " + book.isbn());
+        publisherLabel.setText(publisher.isBlank() ? " " : html(publisher.replaceFirst("^ · ", "")));
+        availabilityLabel.setText(book.availability().isEmpty() ? " " : book.availability());
         loadCover(book);
     }
 
@@ -571,7 +603,7 @@ public final class BookbotSearchApp extends JFrame {
 
     /** Table model backing the results list. */
     private static final class BookTableModel extends AbstractTableModel {
-        private static final String[] COLUMNS = {"Titel", "Auteur", "Jaar", "Taal", "Prijs"};
+        private static final String[] COLUMNS = {"Titel", "Auteur", "Jaar", "Taal", "Prijs", "Beschikbaar"};
         private List<Book> books = new ArrayList<>();
 
         void setBooks(List<Book> books) {
@@ -611,7 +643,8 @@ public final class BookbotSearchApp extends JFrame {
                 case 1 -> b.author();
                 case 2 -> b.year();
                 case 3 -> b.language();
-                default -> b.price();
+                case 4 -> b.price();
+                default -> b.availability();
             };
         }
     }
