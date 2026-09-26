@@ -41,7 +41,8 @@ public final class SearchResultParser {
     /** Parses a search results page (or a single product page, e.g. after an ISBN redirect). */
     public static List<Book> parse(Document doc) {
         Matcher self = PRODUCT_PATH.matcher(doc.location() == null ? "" : doc.location());
-        if (self.find() && productLinks(doc).isEmpty()) {
+        if (self.find()) {
+            // A book page, e.g. after searching an ISBN or pasting a book link.
             return List.of(parseProductPage(doc, self.group(1)));
         }
 
@@ -167,7 +168,7 @@ public final class SearchResultParser {
         String price = firstPrice(doc.select("[class*=price], [class*=Price], [itemprop=price]"));
         String url = doc.location() == null || doc.location().isEmpty()
                 ? "https://bookbot.nl/g/" + id : doc.location();
-        return new Book(id, clean(title), clean(author), price, url, meta(doc, "og:image"))
+        return new Book(id, clean(title), clean(author), price, url, smallCover(meta(doc, "og:image")))
                 .withDetails(BookDetailsParser.parse(doc));
     }
 
@@ -216,21 +217,28 @@ public final class SearchResultParser {
     }
 
     private static String imageUrl(Element card) {
-        Element img = card.selectFirst("img");
-        if (img == null) {
-            return "";
-        }
-        for (String key : new String[] {"src", "data-src", "data-lazy-src"}) {
-            String v = img.absUrl(key);
-            if (!v.isEmpty() && !v.startsWith("data:")) {
-                return v;
+        for (Element img : card.select("img")) {
+            // Skip language flags and other icons next to the cover.
+            if (img.attr("src").contains("flag") || img.attr("data-testid").contains("flag")) {
+                continue;
+            }
+            for (String key : new String[] {"src", "data-src", "data-lazy-src"}) {
+                String v = img.absUrl(key);
+                if (!v.isEmpty() && !v.startsWith("data:")) {
+                    return smallCover(v);
+                }
+            }
+            String srcset = img.attr("srcset");
+            if (!srcset.isEmpty()) {
+                return smallCover(srcset.split(",")[0].strip().split("\\s+")[0]);
             }
         }
-        String srcset = img.attr("srcset");
-        if (!srcset.isEmpty()) {
-            return srcset.split(",")[0].strip().split("\\s+")[0];
-        }
         return "";
+    }
+
+    /** Bookbot's image server has several sizes (/100x100/ ... /1920x1920/); 300x300 fits the details panel. */
+    static String smallCover(String url) {
+        return url.replaceFirst("(knhbt\\.cz/)\\d+x\\d+/", "$1300x300/");
     }
 
     private static String meta(Document doc, String property) {

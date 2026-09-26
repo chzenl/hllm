@@ -1,7 +1,7 @@
 package bookbotsearch;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -14,8 +14,8 @@ import org.jsoup.nodes.Element;
  * <p>Bookbot's Dutch pages list e.g. "Taal: Engels, Nederlands", "Jaar van publicatie: 2016",
  * "Uitgever", "ISBN13". The exact markup is not known, so this looks in several places,
  * most reliable first: labelled rows such as "Jaar van publicatie: 1998" or "Taal | Duits" (in
- * table, definition-list or plain element form), links to {@code /p/language/<id>}, and
- * schema.org data ({@code datePublished}, {@code inLanguage}).
+ * table, definition-list or plain element form), the page data in {@code __NEXT_DATA__}
+ * ({@code "year"}, {@code "languageIds"}), and schema.org data ({@code datePublished}, {@code inLanguage}).
  */
 public final class BookDetailsParser {
 
@@ -32,6 +32,8 @@ public final class BookDetailsParser {
             "(?i)\\b(taal|language|sprache|jazyk)\\s*:\\s*([\\p{L}]+(?:\\s*,\\s*[\\p{L}]+)*)");
     private static final Pattern YEAR = Pattern.compile("\\b((?:1[4-9]|20)\\d{2})\\b");
     private static final Pattern LANGUAGE_LINK = Pattern.compile("/p/language/(\\d+)(?:[/?#]|$)");
+    private static final Pattern NEXT_YEAR = Pattern.compile("\"year\"\\s*:\\s*\"?((?:1[4-9]|20)\\d{2})");
+    private static final Pattern NEXT_LANGUAGE_IDS = Pattern.compile("\"languageIds\"\\s*:\\s*\\[([\\d,\\s]+)]");
     private static final Pattern LD_YEAR = Pattern.compile("\"datePublished\"\\s*:\\s*\"?((?:1[4-9]|20)\\d{2})");
     private static final Pattern LD_LANGUAGE = Pattern.compile("\"inLanguage\"\\s*:\\s*\"([^\"]+)\"");
 
@@ -77,20 +79,27 @@ public final class BookDetailsParser {
             }
         }
 
-        // 3. A single link to a language page (several links usually means a navigation menu).
-        if (languageId.isEmpty()) {
-            Map<String, String> links = new LinkedHashMap<>();
-            for (Element a : doc.select("a[href*=/p/language/]")) {
-                String id = languageLinkId(a);
-                if (!id.isEmpty()) {
-                    links.putIfAbsent(id, a.text());
-                }
+        // 3. The page data of bookbot's Next.js site: "year":"1955" and "languageIds":[4].
+        Element nextData = doc.getElementById("__NEXT_DATA__");
+        if (nextData != null) {
+            String json = nextData.data();
+            Matcher m;
+            if (year.isEmpty() && (m = NEXT_YEAR.matcher(json)).find()) {
+                year = m.group(1);
             }
-            if (links.size() == 1) {
-                Map.Entry<String, String> only = links.entrySet().iterator().next();
-                languageId = only.getKey();
-                if (language.isEmpty()) {
-                    language = only.getValue();
+            if ((m = NEXT_LANGUAGE_IDS.matcher(json)).find()) {
+                List<String> names = new ArrayList<>();
+                List<String> ids = new ArrayList<>();
+                for (String id : m.group(1).split(",")) {
+                    ids.add(id.strip());
+                    Language l = Language.byId(id.strip());
+                    if (l != null) {
+                        names.add(l.toString());
+                    }
+                }
+                languageId = String.join("_", ids);
+                if (language.isEmpty() && !names.isEmpty()) {
+                    language = String.join(", ", names);
                 }
             }
         }
@@ -121,7 +130,7 @@ public final class BookDetailsParser {
 
         String price = SearchResultParser.findPrice(
                 text(doc.selectFirst("[itemprop=price], [class*=price], [class*=Price]")));
-        String image = attr(doc.selectFirst("meta[property=og:image]"), "content");
+        String image = SearchResultParser.smallCover(attr(doc.selectFirst("meta[property=og:image]"), "content"));
         return new BookDetails(year, language, languageId, price, image);
     }
 

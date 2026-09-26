@@ -4,7 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.InputStream;
+import java.util.List;
+
 import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
 import org.junit.jupiter.api.Test;
 
 class BookDetailsParserTest {
@@ -44,6 +48,30 @@ class BookDetailsParserTest {
         BookDetails d = parse("<p>Paperback, Jaar van uitgave: 2011, Taal: Nederlands, 320 pagina's</p>");
         assertEquals("2011", d.year());
         assertEquals("Nederlands", d.language());
+    }
+
+    @Test
+    void readsRealBookbotPage() throws Exception {
+        Document doc;
+        try (InputStream in = getClass().getResourceAsStream("/product-9044579.html")) {
+            doc = Jsoup.parse(in, "UTF-8", "https://bookbot.nl/g/9044579/b/22518515");
+        }
+        BookDetails d = BookDetailsParser.parse(doc);
+        assertEquals("1955", d.year());
+        assertEquals("Duits", d.language());
+        assertEquals("4", d.languageId());
+        assertEquals("€ 3,99", d.price());
+        assertEquals("https://rezised-images.knhbt.cz/300x300/83015870.webp", d.imageUrl());
+
+        // Searching an ISBN can land directly on a book page; that page is then the only result.
+        List<Book> books = SearchResultParser.parse(doc);
+        assertEquals(1, books.size());
+        Book b = books.get(0);
+        assertEquals("9044579", b.id());
+        assertEquals("Verfahren der Chemie-Industrie 1", b.title());
+        assertEquals("Fritz Tegeder", b.author());
+        assertEquals("1955", b.year());
+        assertEquals("https://bookbot.nl/g/9044579/b/22518515", b.url());
     }
 
     @Test

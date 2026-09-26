@@ -26,6 +26,16 @@ public enum Language {
         return id;
     }
 
+    /** The language with bookbot id {@code id}, or null if it is not one of these. */
+    public static Language byId(String id) {
+        for (Language l : values()) {
+            if (Integer.toString(l.id).equals(id)) {
+                return l;
+            }
+        }
+        return null;
+    }
+
     /** Bookbot's notation for several languages: ids in ascending order joined by "_", e.g. "1_3_4". */
     public static String ids(Set<Language> languages) {
         return languages.stream()
