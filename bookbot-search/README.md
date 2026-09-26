@@ -8,7 +8,9 @@ Desktop app (Java Swing) for searching second-hand books on [bookbot.nl](https:/
 - Filter by book language with the **Taal** dropdown (Nederlands, Engels, Duits, Frans, Spaans,
   Italiaans, Tsjechisch). With a language chosen and an empty search field you browse all books in
   that language.
-- Results table with title, author and price (click a column header to sort)
+- **Zoekterm in titel** (on by default): only show books whose title contains every search word.
+  Turn it off to also find books by author or ISBN.
+- Publication year and language are shown for every book
 - Details panel with the cover image, title, author and price
 - Double-click a result, or click **Openen op bookbot.nl**, to open the book page in your browser
 - Page through results with **Vorige** / **Volgende**
@@ -40,14 +42,17 @@ placeholders) or pass it at startup:
 java -Dbookbot.searchUrl="https://bookbot.nl/zoeken?q={query}&page={page}" -jar target/bookbot-search-1.0.0.jar
 ```
 
-### Language filter
+### Year, language and the language filter
 
-When a language is chosen the app uses a second URL, by default
-`https://bookbot.nl/p/language/{language}?q={query}&page={page}`. `{language}` is bookbot's numeric
-language id (Nederlands 21, Engels 3, Duits 4, Frans 5, Spaans 7, Italiaans 8, Tsjechisch 1).
-The `/p/language/<id>` pages exist on bookbot, but whether they combine with a text search this way
-is not verified. If the filter ignores your search terms, change this URL under **Instellingen…**
-or pass `-Dbookbot.languageSearchUrl=...` at startup.
+Bookbot's search results do not show year or language, so the app opens each result's own page
+(`/g/<id>`, six at a time, cached) and reads "Jaar van uitgave" and "Taal" from it. The language
+filter is applied to those values, because bookbot's language pages (`/p/language/<id>`) ignore
+search terms. When a filter or the title option removes many books, the app reads up to 5 result
+pages per click, stopping once it has 20 books; **Volgende** continues from there.
+
+With a language chosen and no search terms the app browses
+`https://bookbot.nl/p/language/{language}?page={page}` (override with `-Dbookbot.languageBrowseUrl=...`
+or under **Instellingen…**).
 
 ## How results are read
 

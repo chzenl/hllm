@@ -72,11 +72,21 @@ public final class SearchResultParser {
         if (href.isEmpty()) {
             href = a.attr("href");
         }
-        if (href.startsWith("http") && !href.matches("https?://([^/]+\\.)?bookbot\\.[a-z]+(/.*)?")) {
+        if (href.startsWith("http") && !href.matches("https?://([^/]+\\.)?bookbot\\.[a-z]+(/.*)?")
+                && !sameHost(href, a.baseUri())) {
             return null;
         }
         Matcher m = PRODUCT_PATH.matcher(href);
         return m.find() ? m.group(1) : null;
+    }
+
+    private static boolean sameHost(String url, String pageUrl) {
+        try {
+            String host = java.net.URI.create(url).getHost();
+            return host != null && host.equalsIgnoreCase(java.net.URI.create(pageUrl).getHost());
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 
     private static Book parseCard(String id, List<Element> links) {
@@ -157,7 +167,8 @@ public final class SearchResultParser {
         String price = firstPrice(doc.select("[class*=price], [class*=Price], [itemprop=price]"));
         String url = doc.location() == null || doc.location().isEmpty()
                 ? "https://bookbot.nl/g/" + id : doc.location();
-        return new Book(id, clean(title), clean(author), price, url, meta(doc, "og:image"));
+        return new Book(id, clean(title), clean(author), price, url, meta(doc, "og:image"))
+                .withDetails(BookDetailsParser.parse(doc));
     }
 
     private static String firstText(Element root, String css) {

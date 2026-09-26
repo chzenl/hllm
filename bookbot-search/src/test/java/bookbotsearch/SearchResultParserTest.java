@@ -78,12 +78,14 @@ class SearchResultParserTest {
     void buildsSearchUrl() {
         BookbotClient client = new BookbotClient(
                 "https://bookbot.nl/zoeken?q={query}&page={page}",
-                "https://bookbot.nl/p/language/{language}?q={query}&page={page}");
+                "https://bookbot.nl/p/language/{language}?page={page}");
         assertEquals("https://bookbot.nl/zoeken?q=harry+potter&page=2",
                 client.searchUrl(" harry potter ", 2, Language.ALL));
-        assertEquals("https://bookbot.nl/p/language/21?q=harry+potter&page=1",
-                client.searchUrl("harry potter", 1, Language.DUTCH));
-        assertEquals("https://bookbot.nl/p/language/3?q=&page=1",
-                client.searchUrl("", 1, Language.ENGLISH));
+        // Terms always go to the search page; the language filter is applied afterwards.
+        assertEquals("https://bookbot.nl/zoeken?q=chemie&page=1",
+                client.searchUrl("chemie", 1, Language.GERMAN));
+        // Without terms, a chosen language browses that language's page.
+        assertEquals("https://bookbot.nl/p/language/4?page=3",
+                client.searchUrl("", 3, Language.GERMAN));
     }
 }
