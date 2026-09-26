@@ -5,9 +5,10 @@ Desktop app (Java Swing) for searching second-hand books on [bookbot.nl](https:/
 ## Features
 
 - Search by title, author or ISBN (press Enter or click **Zoeken**)
-- Filter by book language with the **Taal** dropdown (Nederlands, Engels, Duits, Frans, Spaans,
-  Italiaans, Tsjechisch). With a language chosen and an empty search field you browse all books in
-  that language.
+- Filter on one or more book languages with the **Taal** button (Nederlands, Engels, Duits, Frans,
+  Spaans, Italiaans, Tsjechisch). Nederlands, Engels, Duits and Tsjechisch are selected at first;
+  the app remembers your last choice. With languages chosen and an empty search field you browse
+  all books in those languages.
 - **Zoekterm in titel** (on by default): only show books whose title contains every search word.
   Turn it off to also find books by author or ISBN.
 - Publication year and language are shown for every book
@@ -32,27 +33,31 @@ java -jar target/bookbot-search-1.0.0.jar
 java -jar target/bookbot-search-1.0.0.jar "harry potter"
 ```
 
-## Search URL
+## Search URLs
 
-The app requests `https://bookbot.nl/zoeken?q={query}&page={page}` by default. If bookbot uses a
-different search address, change it under **Instellingen…** (use `{query}` and `{page}` as
-placeholders) or pass it at startup:
+The app uses the same addresses as bookbot.nl itself:
 
-```bash
-java -Dbookbot.searchUrl="https://bookbot.nl/zoeken?q={query}&page={page}" -jar target/bookbot-search-1.0.0.jar
-```
+| What | Default URL |
+| --- | --- |
+| Search | `https://bookbot.nl/p/q/{query}?page={page}` |
+| Search in languages | `https://bookbot.nl/p/q/{query}/language/{languages}?page={page}` |
+| Browse languages (empty search) | `https://bookbot.nl/p/language/{languages}?page={page}` |
 
-### Year, language and the language filter
+`{languages}` is bookbot's language ids in ascending order joined by `_`, for example `1_3_4_21`
+for Tsjechisch (1), Engels (3), Duits (4) and Nederlands (21). Other ids: Frans 5, Spaans 7,
+Italiaans 8. For page 1 the `?page=1` part is left out.
 
-Bookbot's search results do not show year or language, so the app opens each result's own page
-(`/g/<id>`, six at a time, cached) and reads "Jaar van uitgave" and "Taal" from it. The language
-filter is applied to those values, because bookbot's language pages (`/p/language/<id>`) ignore
-search terms. When a filter or the title option removes many books, the app reads up to 5 result
-pages per click, stopping once it has 20 books; **Volgende** continues from there.
+The URLs can be changed under **Instellingen…** or at startup with `-Dbookbot.searchUrl=...`,
+`-Dbookbot.languageSearchUrl=...` and `-Dbookbot.languageBrowseUrl=...`.
 
-With a language chosen and no search terms the app browses
-`https://bookbot.nl/p/language/{language}?page={page}` (override with `-Dbookbot.languageBrowseUrl=...`
-or under **Instellingen…**).
+### Title filter, year and language
+
+**Zoekterm in titel** is applied by the app: books whose title does not contain every search word
+are left out. Because that can remove many books, the app reads up to 5 result pages per click and
+stops once it has 20 books; **Volgende** continues from there.
+
+Search results do not show year or language, so the app opens each result's own page
+(`/g/<id>`, six at a time, cached) and reads "Jaar van uitgave" and "Taal" from it.
 
 ## How results are read
 

@@ -13,10 +13,14 @@ import java.awt.image.BufferedImage;
 import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.Set;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.prefs.Preferences;
 
 import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
@@ -25,10 +29,12 @@ import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
-import javax.swing.JComboBox;
+import javax.swing.JCheckBoxMenuItem;
+import javax.swing.JPopupMenu;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -40,6 +46,8 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.UIManager;
+import javax.swing.event.PopupMenuEvent;
+import javax.swing.event.PopupMenuListener;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableRowSorter;
 
@@ -50,7 +58,9 @@ public final class BookbotSearchApp extends JFrame {
     private final Map<String, ImageIcon> coverCache = new ConcurrentHashMap<>();
 
     private final JTextField queryField = new JTextField(30);
-    private final JComboBox<Language> languageBox = new JComboBox<>(Language.values());
+    private final JButton languageButton = new JButton();
+    private final JPopupMenu languageMenu = new JPopupMenu();
+    private final Map<Language, JCheckBoxMenuItem> languageItems = new EnumMap<>(Language.class);
     private final JCheckBox titleOnlyBox = new JCheckBox("Zoekterm in titel", true);
     private final JButton searchButton = new JButton("Zoeken");
     private final JButton prevButton = new JButton("◀ Vorige");
@@ -68,7 +78,11 @@ public final class BookbotSearchApp extends JFrame {
     private final JButton openButton = new JButton("Openen op bookbot.nl");
 
     private String currentQuery = "";
-    private Language currentLanguage = Language.ALL;
+    private Set<Language> currentLanguages = EnumSet.noneOf(Language.class);
+    /** Remembers the chosen languages between runs. */
+    private final Preferences prefs = Preferences.userNodeForPackage(BookbotSearchApp.class);
+    private static final String PREF_LANGUAGES = "languages";
+    private static final String DEFAULT_LANGUAGES = "DUTCH,ENGLISH,GERMAN,CZECH";
     private boolean currentTitleOnly;
     private boolean hasSearched;
     /** Bookbot result page each batch shown so far started at; the last entry is the batch on screen. */
@@ -97,9 +111,8 @@ public final class BookbotSearchApp extends JFrame {
         top.add(queryField, BorderLayout.CENTER);
         JPanel topButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         JButton settingsButton = new JButton("Instellingen…");
-        languageBox.setToolTipText("Taal van de boeken");
-        topButtons.add(new JLabel("Taal:"));
-        topButtons.add(languageBox);
+        buildLanguageMenu();
+        topButtons.add(languageButton);
         titleOnlyBox.setToolTipText("Alleen boeken tonen waarvan de titel alle zoekwoorden bevat");
         topButtons.add(titleOnlyBox);
         topButtons.add(searchButton);
@@ -146,11 +159,6 @@ public final class BookbotSearchApp extends JFrame {
 
         searchButton.addActionListener(e -> newSearch());
         queryField.addActionListener(e -> newSearch());
-        languageBox.addActionListener(e -> {
-            if (hasSearched) {
-                newSearch();
-            }
-        });
         titleOnlyBox.addActionListener(e -> {
             if (hasSearched) {
                 newSearch();
@@ -176,9 +184,9 @@ public final class BookbotSearchApp extends JFrame {
         });
         openSearchButton.addActionListener(e -> {
             if (hasSearched && !batchStarts.isEmpty()) {
-                openInBrowser(client.searchUrl(currentQuery, batchStarts.get(batchStarts.size() - 1), currentLanguage));
-            } else if (canSearch(queryField.getText().strip(), selectedLanguage())) {
-                openInBrowser(client.searchUrl(queryField.getText(), 1, selectedLanguage()));
+                openInBrowser(client.searchUrl(currentQuery, batchStarts.get(batchStarts.size() - 1), currentLanguages));
+            } else if (canSearch(queryField.getText().strip(), selectedLanguages())) {
+                openInBrowser(client.searchUrl(queryField.getText(), 1, selectedLanguages()));
             }
         });
         settingsButton.addActionListener(e -> showSettings());
@@ -219,30 +227,109 @@ public final class BookbotSearchApp extends JFrame {
         return panel;
     }
 
-    private Language selectedLanguage() {
-        Language language = (Language) languageBox.getSelectedItem();
-        return language == null ? Language.ALL : language;
+    /** A popup with a checkbox per language; it stays open while ticking and searches again when closed. */
+    private void buildLanguageMenu() {
+        JMenuItem all = new JMenuItem("Alle talen");
+        all.addActionListener(e -> languageItems.values().forEach(i -> i.setSelected(false)));
+        languageMenu.add(all);
+        languageMenu.addSeparator();
+        for (Language l : Language.values()) {
+            JCheckBoxMenuItem item = new JCheckBoxMenuItem(l.toString(), savedLanguages().contains(l));
+            item.putClientProperty("CheckBoxMenuItem.doNotCloseOnMouseClick", Boolean.TRUE);
+            item.addActionListener(e -> updateLanguageButton());
+            languageItems.put(l, item);
+            languageMenu.add(item);
+        }
+        languageMenu.addPopupMenuListener(new PopupMenuListener() {
+            private Set<Language> before;
+
+            @Override
+            public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
+                before = selectedLanguages();
+            }
+
+            @Override
+            public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {
+                updateLanguageButton();
+                if (hasSearched && !selectedLanguages().equals(before)) {
+                    SwingUtilities.invokeLater(BookbotSearchApp.this::newSearch);
+                }
+            }
+
+            @Override
+            public void popupMenuCanceled(PopupMenuEvent e) {
+            }
+        });
+        languageButton.setToolTipText("Taal van de boeken (meerdere mogelijk)");
+        languageButton.addActionListener(e -> languageMenu.show(languageButton, 0, languageButton.getHeight()));
+        updateLanguageButton();
     }
 
-    /** A search needs terms, except when a language is chosen: then an empty query browses that language. */
-    private static boolean canSearch(String query, Language language) {
-        return !query.isEmpty() || language != Language.ALL;
+    private Set<Language> savedLanguages() {
+        Set<Language> languages = EnumSet.noneOf(Language.class);
+        String saved;
+        try {
+            saved = prefs.get(PREF_LANGUAGES, DEFAULT_LANGUAGES);
+        } catch (RuntimeException e) {
+            saved = DEFAULT_LANGUAGES;
+        }
+        for (String name : saved.split(",")) {
+            try {
+                languages.add(Language.valueOf(name.strip()));
+            } catch (IllegalArgumentException ignored) {
+                // empty string or a language that no longer exists
+            }
+        }
+        return languages;
     }
 
-    private static String describe(String query, Language language) {
+    private void updateLanguageButton() {
+        Set<Language> languages = selectedLanguages();
+        try {
+            prefs.put(PREF_LANGUAGES, String.join(",", languages.stream().map(Language::name).toList()));
+        } catch (RuntimeException ignored) {
+            // preferences unavailable; the choice just isn't remembered
+        }
+        languageButton.setText("Taal: " + (languages.isEmpty() ? "alle" : languageList(languages, ", ")) + " ▾");
+    }
+
+    private Set<Language> selectedLanguages() {
+        Set<Language> languages = EnumSet.noneOf(Language.class);
+        languageItems.forEach((l, item) -> {
+            if (item.isSelected()) {
+                languages.add(l);
+            }
+        });
+        return languages;
+    }
+
+    private static String languageList(Set<Language> languages, String lastSeparator) {
+        List<String> names = languages.stream().map(Language::toString).toList();
+        if (names.size() == 1) {
+            return names.get(0);
+        }
+        return String.join(", ", names.subList(0, names.size() - 1)) + lastSeparator + names.get(names.size() - 1);
+    }
+
+    /** A search needs terms, except when languages are chosen: then an empty query browses those languages. */
+    private static boolean canSearch(String query, Set<Language> languages) {
+        return !query.isEmpty() || !languages.isEmpty();
+    }
+
+    private static String describe(String query, Set<Language> languages) {
         String what = query.isEmpty() ? "alle boeken" : "\"" + query + "\"";
-        return language == Language.ALL ? what : what + " in het " + language;
+        return languages.isEmpty() ? what : what + " in het " + languageList(languages, " of ");
     }
 
     /** Starts a search with the current contents of the search bar. */
     private void newSearch() {
         String q = queryField.getText().strip();
-        Language language = selectedLanguage();
-        if (!canSearch(q, language)) {
+        Set<Language> languages = selectedLanguages();
+        if (!canSearch(q, languages)) {
             return;
         }
         currentQuery = q;
-        currentLanguage = language;
+        currentLanguages = languages;
         currentTitleOnly = titleOnlyBox.isSelected() && !q.isEmpty();
         hasSearched = true;
         batchStarts.clear();
@@ -255,11 +342,11 @@ public final class BookbotSearchApp extends JFrame {
             searchWorker.cancel(true);
         }
         String q = currentQuery;
-        Language language = currentLanguage;
+        Set<Language> languages = currentLanguages;
         boolean titleOnly = currentTitleOnly;
         batchStarts.add(startPage);
         int batchNumber = batchStarts.size();
-        String description = describe(q, language);
+        String description = describe(q, languages);
 
         lastBatch = null;
         tableModel.setBooks(List.of());
@@ -270,7 +357,7 @@ public final class BookbotSearchApp extends JFrame {
         SwingWorker<BookbotClient.Batch, Book> worker = new SwingWorker<>() {
             @Override
             protected BookbotClient.Batch doInBackground() throws Exception {
-                return client.searchBatch(q, language, titleOnly, startPage, this::publish);
+                return client.searchBatch(q, languages, titleOnly, startPage, this::publish);
             }
 
             @Override
@@ -310,7 +397,7 @@ public final class BookbotSearchApp extends JFrame {
                     setStatus("Fout: " + cause.getMessage());
                     JOptionPane.showMessageDialog(BookbotSearchApp.this,
                             html("Zoeken mislukt: " + cause.getMessage()
-                                    + "\n\nURL: " + client.searchUrl(q, startPage, language), 420),
+                                    + "\n\nURL: " + client.searchUrl(q, startPage, languages), 420),
                             "Fout", JOptionPane.ERROR_MESSAGE);
                 }
                 updateButtons(false);
@@ -327,8 +414,8 @@ public final class BookbotSearchApp extends JFrame {
                 .append(" (deel ").append(batchNumber).append(", ")
                 .append(batch.pagesScanned()).append(batch.pagesScanned() == 1 ? " pagina" : " pagina's")
                 .append(" van bookbot doorzocht)");
-        if (batch.unknownLanguage() > 0) {
-            sb.append(" – ").append(batch.unknownLanguage()).append(" boeken zonder bekende taal overgeslagen");
+        if (batch.titleSkipped() > 0) {
+            sb.append(" – ").append(batch.titleSkipped()).append(" zonder zoekterm in de titel weggelaten");
         }
         if (batch.books().isEmpty() && batch.more()) {
             sb.append(" – klik op Volgende om verder te zoeken");
@@ -426,37 +513,34 @@ public final class BookbotSearchApp extends JFrame {
     }
 
     private void showSettings() {
-        JTextField urlField = new JTextField(client.getSearchUrlTemplate(), 45);
-        JTextField languageUrlField = new JTextField(client.getLanguageBrowseUrlTemplate(), 45);
+        JTextField searchField = new JTextField(client.getSearchUrlTemplate(), 45);
+        JTextField languageSearchField = new JTextField(client.getLanguageSearchUrlTemplate(), 45);
+        JTextField browseField = new JTextField(client.getLanguageBrowseUrlTemplate(), 45);
         JPanel panel = new JPanel();
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        JLabel intro = new JLabel("<html>Gebruik <b>{query}</b> voor de zoektermen, <b>{page}</b> voor het "
-                + "paginanummer en <b>{language}</b> voor de taalcode.</html>");
-        JLabel plainLabel = new JLabel("Zoek-URL:");
-        JLabel browseLabel = new JLabel("URL om per taal te bladeren (bij een leeg zoekveld):");
-        for (JComponent c : new JComponent[] {
-                intro, plainLabel, urlField, browseLabel, languageUrlField}) {
+        JComponent[] rows = {
+            new JLabel("<html>Gebruik <b>{query}</b> voor de zoektermen, <b>{page}</b> voor het paginanummer en "
+                    + "<b>{languages}</b> voor de taalcodes (bijv. 1_3_4).</html>"),
+            new JLabel("Zoek-URL:"), searchField,
+            new JLabel("Zoek-URL met taalfilter:"), languageSearchField,
+            new JLabel("URL om per taal te bladeren (bij een leeg zoekveld):"), browseField,
+        };
+        for (JComponent c : rows) {
             c.setAlignmentX(LEFT_ALIGNMENT);
+            if (c instanceof JLabel && c != rows[0]) {
+                panel.add(Box.createVerticalStrut(8));
+            }
+            panel.add(c);
         }
-        panel.add(intro);
-        panel.add(Box.createVerticalStrut(8));
-        panel.add(plainLabel);
-        panel.add(urlField);
-        panel.add(Box.createVerticalStrut(8));
-        panel.add(browseLabel);
-        panel.add(languageUrlField);
         int choice = JOptionPane.showOptionDialog(this, panel, "Instellingen",
                 JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE, null,
                 new Object[] {"Opslaan", "Standaard", "Annuleren"}, "Opslaan");
         try {
             if (choice == 0) {
-                // Validate both before changing either, so a bad value leaves the settings untouched.
-                new BookbotClient(urlField.getText(), languageUrlField.getText());
-                client.setSearchUrlTemplate(urlField.getText());
-                client.setLanguageBrowseUrlTemplate(languageUrlField.getText());
+                client.setUrlTemplates(searchField.getText(), languageSearchField.getText(), browseField.getText());
             } else if (choice == 1) {
-                client.setSearchUrlTemplate(BookbotClient.DEFAULT_SEARCH_URL);
-                client.setLanguageBrowseUrlTemplate(BookbotClient.DEFAULT_LANGUAGE_BROWSE_URL);
+                client.setUrlTemplates(BookbotClient.DEFAULT_SEARCH_URL,
+                        BookbotClient.DEFAULT_LANGUAGE_SEARCH_URL, BookbotClient.DEFAULT_LANGUAGE_BROWSE_URL);
             }
         } catch (IllegalArgumentException ex) {
             JOptionPane.showMessageDialog(this, ex.getMessage(), "Ongeldige URL", JOptionPane.WARNING_MESSAGE);

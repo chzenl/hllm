@@ -56,21 +56,6 @@ class BookDetailsParserTest {
     }
 
     @Test
-    void matchesLanguages() {
-        Book german = new Book("1", "t", "", "", "", "").withDetails(new BookDetails("", "Duits", "", "", ""));
-        Book byId = new Book("2", "t", "", "", "", "").withDetails(new BookDetails("", "?", "4", "", ""));
-        Book czech = new Book("3", "t", "", "", "", "").withDetails(new BookDetails("", "Němčina", "", "", ""));
-        Book iso = new Book("4", "t", "", "", "", "").withDetails(new BookDetails("", "de", "", "", ""));
-        Book english = new Book("5", "t", "", "", "", "").withDetails(new BookDetails("", "English", "", "", ""));
-        assertTrue(Language.GERMAN.matches(german));
-        assertTrue(Language.GERMAN.matches(byId));
-        assertTrue(Language.GERMAN.matches(czech));
-        assertTrue(Language.GERMAN.matches(iso));
-        assertFalse(Language.GERMAN.matches(english));
-        assertTrue(Language.ALL.matches(english));
-    }
-
-    @Test
     void matchesTitles() {
         assertTrue(BookbotClient.titleMatches("Allgemeine Chemie für Studenten", "chemie"));
         assertTrue(BookbotClient.titleMatches("Élémentaire chimie", "elementaire CHIMIE"));

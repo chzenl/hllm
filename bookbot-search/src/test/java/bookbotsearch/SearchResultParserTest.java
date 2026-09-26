@@ -2,7 +2,9 @@ package bookbotsearch;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -76,16 +78,17 @@ class SearchResultParserTest {
 
     @Test
     void buildsSearchUrl() {
-        BookbotClient client = new BookbotClient(
-                "https://bookbot.nl/zoeken?q={query}&page={page}",
-                "https://bookbot.nl/p/language/{language}?page={page}");
-        assertEquals("https://bookbot.nl/zoeken?q=harry+potter&page=2",
-                client.searchUrl(" harry potter ", 2, Language.ALL));
-        // Terms always go to the search page; the language filter is applied afterwards.
-        assertEquals("https://bookbot.nl/zoeken?q=chemie&page=1",
-                client.searchUrl("chemie", 1, Language.GERMAN));
-        // Without terms, a chosen language browses that language's page.
-        assertEquals("https://bookbot.nl/p/language/4?page=3",
-                client.searchUrl("", 3, Language.GERMAN));
+        BookbotClient client = new BookbotClient(BookbotClient.DEFAULT_SEARCH_URL,
+                BookbotClient.DEFAULT_LANGUAGE_SEARCH_URL, BookbotClient.DEFAULT_LANGUAGE_BROWSE_URL);
+        Set<Language> none = EnumSet.noneOf(Language.class);
+        assertEquals("https://bookbot.nl/p/q/chemie", client.searchUrl("chemie", 1, none));
+        assertEquals("https://bookbot.nl/p/q/harry%20potter?page=2", client.searchUrl(" harry potter ", 2, none));
+        // The URL from bookbot.nl for Czech, English and German.
+        assertEquals("https://bookbot.nl/p/q/chemie/language/1_3_4",
+                client.searchUrl("chemie", 1, EnumSet.of(Language.GERMAN, Language.CZECH, Language.ENGLISH)));
+        assertEquals("https://bookbot.nl/p/q/chemie/language/1_3_4_21?page=3",
+                client.searchUrl("chemie", 3, EnumSet.of(Language.DUTCH, Language.GERMAN, Language.CZECH, Language.ENGLISH)));
+        // Without terms, chosen languages browse the language page.
+        assertEquals("https://bookbot.nl/p/language/4", client.searchUrl("", 1, EnumSet.of(Language.GERMAN)));
     }
 }
