@@ -39,13 +39,14 @@ The app uses the same addresses as bookbot.nl itself:
 
 | What | Default URL |
 | --- | --- |
-| Search | `https://bookbot.nl/p/q/{query}?page={page}` |
-| Search in languages | `https://bookbot.nl/p/q/{query}/language/{languages}?page={page}` |
-| Browse languages (empty search) | `https://bookbot.nl/p/language/{languages}?page={page}` |
+| Search | `https://bookbot.nl/p/q/{query}/page/{page}` |
+| Search in languages | `https://bookbot.nl/p/q/{query}/language/{languages}/page/{page}` |
+| Browse languages (empty search) | `https://bookbot.nl/p/language/{languages}/page/{page}` |
 
 `{languages}` is bookbot's language ids in ascending order joined by `_`, for example `1_3_4_21`
 for Tsjechisch (1), Engels (3), Duits (4) and Nederlands (21). Other ids: Frans 5, Spaans 7,
-Italiaans 8. For page 1 the `?page=1` part is left out.
+Italiaans 8. Page 2 of German and Dutch results for "chemie" is
+`https://bookbot.nl/p/q/chemie/language/4_21/page/2`; for page 1 the `/page/1` part is left out.
 
 The URLs can be changed under **Instellingen…** or at startup with `-Dbookbot.searchUrl=...`,
 `-Dbookbot.languageSearchUrl=...` and `-Dbookbot.languageBrowseUrl=...`.

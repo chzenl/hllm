@@ -30,10 +30,10 @@ class BookbotClientTest {
         base = "http://127.0.0.1:" + server.getAddress().getPort();
         server.createContext("/p/q/", ex -> {
             requested.add(ex.getRequestURI().toString());
-            String q = ex.getRequestURI().getQuery();
-            if (q == null) {
+            String path = ex.getRequestURI().getPath();
+            if (path.endsWith("/1_3_4")) {
                 reply(ex, card(1, "Chemie für Anfänger") + card(2, "Chemistry basics") + card(3, "Organische Chemie"));
-            } else if (q.equals("page=2")) {
+            } else if (path.endsWith("/page/2")) {
                 reply(ex, card(4, "Chemie heute") + card(5, "Kochbuch"));
             } else {
                 reply(ex, "<p>Geen resultaten</p>");
@@ -66,14 +66,14 @@ class BookbotClientTest {
 
     @Test
     void searchesWithLanguagesAndFiltersTitles() throws Exception {
-        BookbotClient client = new BookbotClient(base + "/p/q/{query}?page={page}",
-                base + "/p/q/{query}/language/{languages}?page={page}", base + "/p/language/{languages}");
+        BookbotClient client = new BookbotClient(base + "/p/q/{query}/page/{page}",
+                base + "/p/q/{query}/language/{languages}/page/{page}", base + "/p/language/{languages}");
         List<Book> streamed = new ArrayList<>();
         BookbotClient.Batch batch = client.searchBatch("chemie",
                 EnumSet.of(Language.GERMAN, Language.ENGLISH, Language.CZECH), true, 1, streamed::add);
 
-        assertEquals(List.of("/p/q/chemie/language/1_3_4", "/p/q/chemie/language/1_3_4?page=2",
-                "/p/q/chemie/language/1_3_4?page=3"), requested);
+        assertEquals(List.of("/p/q/chemie/language/1_3_4", "/p/q/chemie/language/1_3_4/page/2",
+                "/p/q/chemie/language/1_3_4/page/3"), requested);
         // "Chemistry basics" and "Kochbuch" lack the word "chemie" in the title.
         assertEquals(List.of("Chemie für Anfänger", "Organische Chemie", "Chemie heute"),
                 batch.books().stream().map(Book::title).toList());

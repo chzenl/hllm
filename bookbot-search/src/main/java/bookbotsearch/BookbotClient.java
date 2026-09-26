@@ -29,21 +29,21 @@ public final class BookbotClient {
      * {@code {query}} is replaced by the search terms and {@code {page}} by the 1-based page number.
      * Override with {@code -Dbookbot.searchUrl=...} or from the settings dialog.
      */
-    public static final String DEFAULT_SEARCH_URL = "https://bookbot.nl/p/q/{query}?page={page}";
+    public static final String DEFAULT_SEARCH_URL = "https://bookbot.nl/p/q/{query}/page/{page}";
 
     /**
-     * Search URL with a language filter (e.g. {@code https://bookbot.nl/p/q/chemie/language/1_3_4}).
+     * Search URL with a language filter (e.g. {@code https://bookbot.nl/p/q/chemie/language/4_21/page/2}).
      * {@code {languages}} is replaced by bookbot's language ids joined by "_" (see {@link Language#ids}).
      * Override with {@code -Dbookbot.languageSearchUrl=...}.
      */
     public static final String DEFAULT_LANGUAGE_SEARCH_URL =
-            "https://bookbot.nl/p/q/{query}/language/{languages}?page={page}";
+            "https://bookbot.nl/p/q/{query}/language/{languages}/page/{page}";
 
     /**
      * URL for browsing all books in the chosen languages, used when the search field is empty.
      * Override with {@code -Dbookbot.languageBrowseUrl=...}.
      */
-    public static final String DEFAULT_LANGUAGE_BROWSE_URL = "https://bookbot.nl/p/language/{languages}?page={page}";
+    public static final String DEFAULT_LANGUAGE_BROWSE_URL = "https://bookbot.nl/p/language/{languages}/page/{page}";
 
     /** A batch stops once it has this many matching books... */
     static final int TARGET_RESULTS = 20;
@@ -125,7 +125,7 @@ public final class BookbotClient {
                 .replace("{page}", Integer.toString(page))
                 .replace("{languages}", filtered ? Language.ids(languages) : "");
         // Keep page 1 on the same address bookbot itself uses.
-        return page == 1 ? url.replaceFirst("[?&]page=1$", "") : url;
+        return page == 1 ? url.replaceFirst("(/page/1|[?&]page=1)$", "") : url;
     }
 
     /** One page of results as bookbot returns them, without details or filtering. */

@@ -82,12 +82,15 @@ class SearchResultParserTest {
                 BookbotClient.DEFAULT_LANGUAGE_SEARCH_URL, BookbotClient.DEFAULT_LANGUAGE_BROWSE_URL);
         Set<Language> none = EnumSet.noneOf(Language.class);
         assertEquals("https://bookbot.nl/p/q/chemie", client.searchUrl("chemie", 1, none));
-        assertEquals("https://bookbot.nl/p/q/harry%20potter?page=2", client.searchUrl(" harry potter ", 2, none));
+        assertEquals("https://bookbot.nl/p/q/harry%20potter/page/2", client.searchUrl(" harry potter ", 2, none));
         // The URL from bookbot.nl for Czech, English and German.
         assertEquals("https://bookbot.nl/p/q/chemie/language/1_3_4",
                 client.searchUrl("chemie", 1, EnumSet.of(Language.GERMAN, Language.CZECH, Language.ENGLISH)));
-        assertEquals("https://bookbot.nl/p/q/chemie/language/1_3_4_21?page=3",
+        assertEquals("https://bookbot.nl/p/q/chemie/language/1_3_4_21/page/3",
                 client.searchUrl("chemie", 3, EnumSet.of(Language.DUTCH, Language.GERMAN, Language.CZECH, Language.ENGLISH)));
+        // The URL from bookbot.nl for page 2 in German and Dutch.
+        assertEquals("https://bookbot.nl/p/q/chemie/language/4_21/page/2",
+                client.searchUrl("chemie", 2, EnumSet.of(Language.DUTCH, Language.GERMAN)));
         // Without terms, chosen languages browse the language page.
         assertEquals("https://bookbot.nl/p/language/4", client.searchUrl("", 1, EnumSet.of(Language.GERMAN)));
     }
