@@ -19,18 +19,29 @@ public final class BookbotClient {
      */
     public static final String DEFAULT_SEARCH_URL = "https://bookbot.nl/zoeken?q={query}&page={page}";
 
+    /**
+     * Search URL used when a book language is selected. {@code {language}} is replaced by bookbot's
+     * numeric language id (see {@link Language}). Override with {@code -Dbookbot.languageSearchUrl=...}
+     * or from the settings dialog.
+     */
+    public static final String DEFAULT_LANGUAGE_SEARCH_URL =
+            "https://bookbot.nl/p/language/{language}?q={query}&page={page}";
+
     private static final String USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
                     + "Chrome/124.0 Safari/537.36 BookbotSearch/1.0";
 
     private volatile String searchUrlTemplate;
+    private volatile String languageSearchUrlTemplate;
 
     public BookbotClient() {
-        this(System.getProperty("bookbot.searchUrl", DEFAULT_SEARCH_URL));
+        this(System.getProperty("bookbot.searchUrl", DEFAULT_SEARCH_URL),
+                System.getProperty("bookbot.languageSearchUrl", DEFAULT_LANGUAGE_SEARCH_URL));
     }
 
-    public BookbotClient(String searchUrlTemplate) {
+    public BookbotClient(String searchUrlTemplate, String languageSearchUrlTemplate) {
         setSearchUrlTemplate(searchUrlTemplate);
+        setLanguageSearchUrlTemplate(languageSearchUrlTemplate);
     }
 
     public String getSearchUrlTemplate() {
@@ -44,13 +55,28 @@ public final class BookbotClient {
         this.searchUrlTemplate = template.strip();
     }
 
-    public String searchUrl(String query, int page) {
-        String encoded = URLEncoder.encode(query.strip(), StandardCharsets.UTF_8);
-        return searchUrlTemplate.replace("{query}", encoded).replace("{page}", Integer.toString(page));
+    public String getLanguageSearchUrlTemplate() {
+        return languageSearchUrlTemplate;
     }
 
-    public List<Book> search(String query, int page) throws IOException {
-        Connection.Response response = Jsoup.connect(searchUrl(query, page))
+    public void setLanguageSearchUrlTemplate(String template) {
+        if (template == null || !template.contains("{language}")) {
+            throw new IllegalArgumentException("Language search URL must contain {language}");
+        }
+        this.languageSearchUrlTemplate = template.strip();
+    }
+
+    public String searchUrl(String query, int page, Language language) {
+        String encoded = URLEncoder.encode(query.strip(), StandardCharsets.UTF_8);
+        boolean filtered = language != null && language != Language.ALL;
+        String template = filtered ? languageSearchUrlTemplate : searchUrlTemplate;
+        return template.replace("{query}", encoded)
+                .replace("{page}", Integer.toString(page))
+                .replace("{language}", filtered ? language.id() : "");
+    }
+
+    public List<Book> search(String query, int page, Language language) throws IOException {
+        Connection.Response response = Jsoup.connect(searchUrl(query, page, language))
                 .userAgent(USER_AGENT)
                 .header("Accept-Language", "nl-NL,nl;q=0.9,en;q=0.8")
                 .timeout(20_000)
