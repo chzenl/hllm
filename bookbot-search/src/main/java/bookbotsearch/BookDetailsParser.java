@@ -11,8 +11,9 @@ import org.jsoup.nodes.Element;
 /**
  * Reads publication year and language from a book's own page ({@code /g/<id>}).
  *
- * <p>The exact markup of bookbot's product pages is not known, so this looks in several places,
- * most reliable first: labelled rows such as "Jaar van uitgave: 1998" or "Taal | Duits" (in
+ * <p>Bookbot's Dutch pages list e.g. "Taal: Engels, Nederlands", "Jaar van publicatie: 2016",
+ * "Uitgever", "ISBN13". The exact markup is not known, so this looks in several places,
+ * most reliable first: labelled rows such as "Jaar van publicatie: 1998" or "Taal | Duits" (in
  * table, definition-list or plain element form), links to {@code /p/language/<id>}, and
  * schema.org data ({@code datePublished}, {@code inLanguage}).
  */
@@ -25,10 +26,10 @@ public final class BookDetailsParser {
     private static final Pattern LANGUAGE_LABEL = Pattern.compile(
             "(?i)^\\s*(taal|language|sprache|jazyk)\\s*:?\\s*$");
     private static final Pattern YEAR_INLINE = Pattern.compile(
-            "(?i)(jaar van uitgave|uitgavejaar|publicatiejaar|year of publication|publication year|"
+            "(?i)(jaar van publicatie|jaar van uitgave|uitgavejaar|publicatiejaar|year of publication|publication year|"
                     + "erscheinungsjahr|rok vydání)\\s*:?\\s*((?:1[4-9]|20)\\d{2})");
     private static final Pattern LANGUAGE_INLINE = Pattern.compile(
-            "(?i)\\b(taal|language|sprache|jazyk)\\s*:\\s*([\\p{L}]+)");
+            "(?i)\\b(taal|language|sprache|jazyk)\\s*:\\s*([\\p{L}]+(?:\\s*,\\s*[\\p{L}]+)*)");
     private static final Pattern YEAR = Pattern.compile("\\b((?:1[4-9]|20)\\d{2})\\b");
     private static final Pattern LANGUAGE_LINK = Pattern.compile("/p/language/(\\d+)(?:[/?#]|$)");
     private static final Pattern LD_YEAR = Pattern.compile("\"datePublished\"\\s*:\\s*\"?((?:1[4-9]|20)\\d{2})");

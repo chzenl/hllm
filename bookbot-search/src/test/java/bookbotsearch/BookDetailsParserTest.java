@@ -47,6 +47,26 @@ class BookDetailsParserTest {
     }
 
     @Test
+    void readsBookbotFields() {
+        // Field names as on bookbot.nl book pages.
+        BookDetails d = parse("""
+                <div><span>Taal</span><span>Engels, Nederlands</span></div>
+                <div><span>Uitgever</span><span>Marco Polo</span></div>
+                <div><span>Jaar van publicatie</span><span>2016</span></div>
+                <div><span>ISBN13</span><span>9783829738644</span></div>
+                """);
+        assertEquals("2016", d.year());
+        assertEquals("Engels, Nederlands", d.language());
+    }
+
+    @Test
+    void readsBookbotFieldsAsText() {
+        BookDetails d = parse("<p>Taal: Engels, Nederlands Uitgever: Marco Polo Jaar van publicatie: 2016</p>");
+        assertEquals("2016", d.year());
+        assertEquals("Engels, Nederlands", d.language());
+    }
+
+    @Test
     void readsJsonLd() {
         BookDetails d = parse("""
                 <script type="application/ld+json">{"@type":"Book","datePublished":"1975-01-01","inLanguage":"de"}</script>
